@@ -1,30 +1,16 @@
-const express = require('express');
-const router = express.Router();
-const pool = require('../db');
-
-// Get leads by user
+// Before: GET /api/leads/:userId
 router.get('/:userId', async (req, res) => {
-  const { userId } = req.params;
+  const requestedUserId = parseInt(req.params.userId);
+  const providedUserId = parseInt(req.headers['x-user-id']); // Send this from frontend
+
+  if (requestedUserId !== providedUserId) {
+    return res.status(403).json({ error: 'Unauthorized access' });
+  }
+
   try {
-    const leads = await pool.query('SELECT * FROM leads WHERE user_id = $1', [userId]);
+    const leads = await pool.query('SELECT * FROM leads WHERE user_id = $1', [requestedUserId]);
     res.json(leads.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
-// Add a lead
-router.post('/', async (req, res) => {
-  const { user_id, company, contact, email, stage } = req.body;
-  try {
-    const result = await pool.query(
-      'INSERT INTO leads (user_id, company, contact, email, stage) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [user_id, company, contact, email, stage]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-module.exports = router;
