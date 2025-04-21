@@ -21,8 +21,10 @@ app.get('/', (req, res) => res.send('🧠 FunnelFlow API is running'));
 app.get('/api/test-db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
+    console.log('✅ Database connected successfully at:', result.rows[0].now);
     res.json({ success: true, time: result.rows[0].now });
   } catch (err) {
+    console.error('❌ Database connection failed:', err);
     res.status(500).json({ error: err.message });
   }
 });
