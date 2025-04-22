@@ -21,13 +21,21 @@ router.get('/:userId', async (req, res) => {
     const leads = await pool.query('SELECT * FROM leads WHERE user_id = $1', [requestedUserId]);
     res.json(leads.rows);
   } catch (err) {
+    console.error('❌ Error fetching leads:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ✅ Add a new lead for a user (only user_id required)
 router.post('/', async (req, res) => {
-  const { user_id, company, contact, email, stage, notes } = req.body;
+  const {
+    user_id,
+    company = '',
+    contact = '',
+    email = '',
+    stage = '',
+    notes = ''
+  } = req.body;
 
   if (!user_id) {
     return res.status(400).json({ error: 'Missing user_id' });
@@ -38,7 +46,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO leads (user_id, company, contact, email, stage, notes, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
        RETURNING *`,
-      [user_id, company || null, contact || null, email || null, stage || null, notes || null]
+      [user_id, company, contact, email, stage, notes]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
