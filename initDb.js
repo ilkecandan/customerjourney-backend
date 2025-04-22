@@ -2,10 +2,10 @@ const pool = require('./db');
 
 async function init() {
   try {
-    // Drop old users table if it exists (clean reset)
+    // Drop broken tables if they exist (clean reset)
     await pool.query(`
-      DROP TABLE IF EXISTS leads;
-      DROP TABLE IF EXISTS users;
+      DROP TABLE IF EXISTS leads CASCADE;
+      DROP TABLE IF EXISTS users CASCADE;
     `);
 
     // Create users table
