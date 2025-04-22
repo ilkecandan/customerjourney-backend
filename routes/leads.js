@@ -7,7 +7,7 @@ const pool = require('../db');
 // ✅ Get all leads for a specific user (secure check)
 router.get('/:userId', async (req, res) => {
   const requestedUserId = parseInt(req.params.userId);
-  const providedUserId = parseInt(req.headers['x-user-id']); // Sent from frontend
+  const providedUserId = parseInt(req.headers['x-user-id']);
 
   if (isNaN(requestedUserId) || isNaN(providedUserId)) {
     return res.status(400).json({ error: 'Invalid user ID' });
@@ -25,12 +25,12 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// ✅ Add a new lead for a user
+// ✅ Add a new lead for a user (only user_id required)
 router.post('/', async (req, res) => {
   const { user_id, company, contact, email, stage, notes } = req.body;
 
-  if (!user_id || !company || !contact) {
-    return res.status(400).json({ error: 'Missing required fields: user_id, company, or contact' });
+  if (!user_id) {
+    return res.status(400).json({ error: 'Missing user_id' });
   }
 
   try {
@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO leads (user_id, company, contact, email, stage, notes, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
        RETURNING *`,
-      [user_id, company, contact, email, stage, notes]
+      [user_id, company || null, contact || null, email || null, stage || null, notes || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
