@@ -1,4 +1,4 @@
-// 📄 routes/leads.js 
+// 📄 routes/leads.js
 
 const express = require('express');
 const router = express.Router();
@@ -18,7 +18,7 @@ router.get('/:userId', async (req, res) => {
   }
 
   try {
-    const leads = await pool.query('SELECT * FROM leads WHERE user_id = $1', [requestedUserId]);
+    const leads = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [requestedUserId]);
     res.json(leads.rows);
   } catch (err) {
     console.error('❌ Error fetching leads:', err);
@@ -43,7 +43,7 @@ router.post('/', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO leads (user_id, company, contact, email, stage, notes, created_at)
+      `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
        RETURNING *`,
       [user_id, company, contact, email, stage, notes]
