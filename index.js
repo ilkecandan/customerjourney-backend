@@ -29,13 +29,13 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
-// ✅ Debug: See what columns exist in the leads table
+// ✅ Debug: See what columns exist in the leads_clean table
 app.get('/api/debug/leads-columns', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT column_name
       FROM information_schema.columns
-      WHERE table_name = 'leads'
+      WHERE table_name = 'leads_clean'
     `);
     res.json(result.rows);
   } catch (err) {
