@@ -9,12 +9,12 @@ const SALT_ROUNDS = 10;
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const exists = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const exists = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [username]);
     if (exists.rows.length > 0) return res.status(400).json({ error: 'Username taken' });
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     const result = await pool.query(
-      'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username',
+      'INSERT INTO user_accounts (username, password) VALUES ($1, $2) RETURNING id, username',
       [username, hashedPassword]
     );
 
@@ -29,7 +29,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const result = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [username]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const user = result.rows[0];
