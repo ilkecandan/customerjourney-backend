@@ -29,6 +29,20 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
+// ✅ Debug: See what columns exist in the leads table
+app.get('/api/debug/leads-columns', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'leads'
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ✅ Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);
