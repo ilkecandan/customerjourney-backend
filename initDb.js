@@ -2,9 +2,15 @@ const pool = require('./db');
 
 async function init() {
   try {
+    // Drop old users table if it exists (clean reset)
+    await pool.query(`
+      DROP TABLE IF EXISTS leads;
+      DROP TABLE IF EXISTS users;
+    `);
+
     // Create users table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
@@ -14,7 +20,7 @@ async function init() {
 
     // Create leads table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS leads (
+      CREATE TABLE leads (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         company TEXT,
@@ -26,7 +32,7 @@ async function init() {
       );
     `);
 
-    console.log("✅ Tables created successfully!");
+    console.log("✅ Tables dropped and recreated successfully!");
     process.exit(0);
   } catch (err) {
     console.error("❌ Error creating tables:", err);
