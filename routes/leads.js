@@ -30,17 +30,20 @@ router.post('/', async (req, res) => {
   const { user_id, company, contact, email, stage, notes } = req.body;
 
   if (!user_id || !company || !contact) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(400).json({ error: 'Missing required fields: user_id, company, or contact' });
   }
 
   try {
     const result = await pool.query(
-      'INSERT INTO leads (user_id, company, contact, email, stage, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      `INSERT INTO leads (user_id, company, contact, email, stage, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       RETURNING *`,
       [user_id, company, contact, email, stage, notes]
     );
-    res.json(result.rows[0]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('❌ Error adding lead:', err);
+    res.status(500).json({ error: 'Failed to add lead' });
   }
 });
 
