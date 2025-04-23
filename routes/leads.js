@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// ✅ Get all leads for a specific user (secure check)
+// ✅ GET all leads for a specific user and return grouped by stage
 router.get('/:userId', async (req, res) => {
   const requestedUserId = parseInt(req.params.userId);
   const providedUserId = parseInt(req.headers['x-user-id']);
@@ -18,22 +18,37 @@ router.get('/:userId', async (req, res) => {
   }
 
   try {
-    const leads = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [requestedUserId]);
-    res.json(leads.rows);
+    const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [requestedUserId]);
+    const leads = result.rows;
+
+    const grouped = {
+      awareness: [],
+      interest: [],
+      intent: [],
+      evaluation: [],
+      purchase: []
+    };
+
+    leads.forEach(lead => {
+      const stage = lead.stage || 'awareness'; // fallback
+      if (grouped[stage]) grouped[stage].push(lead);
+    });
+
+    res.json(grouped);
   } catch (err) {
     console.error('❌ Error fetching leads:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Add a new lead for a user (only user_id required)
+// ✅ POST a new lead — only user_id required, everything else optional
 router.post('/', async (req, res) => {
   const {
     user_id,
     company = '',
     contact = '',
     email = '',
-    stage = '',
+    stage = 'awareness', // default to 'awareness'
     notes = ''
   } = req.body;
 
