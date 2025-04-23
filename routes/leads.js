@@ -4,7 +4,25 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// ✅ GET all leads for a specific user and return grouped by stage
+// ✅ Group leads by stage
+function groupLeadsByStage(leads) {
+  const grouped = {
+    awareness: [],
+    interest: [],
+    intent: [],
+    evaluation: [],
+    purchase: []
+  };
+
+  leads.forEach(lead => {
+    const stage = lead.stage || 'awareness'; // fallback
+    if (grouped[stage]) grouped[stage].push(lead);
+  });
+
+  return grouped;
+}
+
+// ✅ GET all leads for a specific user
 router.get('/:userId', async (req, res) => {
   const requestedUserId = parseInt(req.params.userId);
   const providedUserId = parseInt(req.headers['x-user-id']);
@@ -19,36 +37,22 @@ router.get('/:userId', async (req, res) => {
 
   try {
     const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [requestedUserId]);
-    const leads = result.rows;
-
-    const grouped = {
-      awareness: [],
-      interest: [],
-      intent: [],
-      evaluation: [],
-      purchase: []
-    };
-
-    leads.forEach(lead => {
-      const stage = lead.stage || 'awareness'; // fallback
-      if (grouped[stage]) grouped[stage].push(lead);
-    });
-
-    res.json(grouped);
+    const groupedLeads = groupLeadsByStage(result.rows);
+    res.json(groupedLeads);
   } catch (err) {
     console.error('❌ Error fetching leads:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ POST a new lead — only user_id required, everything else optional
+// ✅ POST a new lead — return all leads after insertion
 router.post('/', async (req, res) => {
   const {
     user_id,
     company = '',
     contact = '',
     email = '',
-    stage = 'awareness', // default to 'awareness'
+    stage = 'awareness',
     notes = ''
   } = req.body;
 
@@ -57,13 +61,17 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-       RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
       [user_id, company, contact, email, stage, notes]
     );
-    res.status(201).json(result.rows[0]);
+
+    // Immediately fetch and return updated grouped leads
+    const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [user_id]);
+    const groupedLeads = groupLeadsByStage(result.rows);
+    res.status(201).json(groupedLeads);
+
   } catch (err) {
     console.error('❌ Error adding lead:', err);
     res.status(500).json({ error: 'Failed to add lead' });
