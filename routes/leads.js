@@ -62,19 +62,16 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Missing user_id' });
   }
 
-  // 🛡️ Validation: Reject blank or too-short company name
-  if (!company || company.trim().length < 2) {
-    return res.status(400).json({ error: 'Company name must be at least 2 characters long.' });
-  }
+  // ✨ Accept everything. If company name is too short, rename it kindly.
+  const cleanCompany = company && company.trim().length >= 2 ? company.trim() : 'Untitled Company';
 
   try {
     await pool.query(
       `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
-      [user_id, company.trim(), contact, email, stage, notes]
+      [user_id, cleanCompany, contact, email, stage, notes]
     );
 
-    // Return updated leads grouped by stage
     const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [user_id]);
     const groupedLeads = groupLeadsByStage(result.rows);
     res.status(201).json(groupedLeads);
