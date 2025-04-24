@@ -15,7 +15,7 @@ function groupLeadsByStage(leads) {
   };
 
   leads.forEach(lead => {
-    const stage = lead.currentstage || lead.stage || 'awareness'; // Support both
+    const stage = lead.current_stage || lead.stage || 'awareness';
     if (grouped[stage]) {
       grouped[stage].push(lead);
     }
@@ -47,7 +47,7 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// ✅ POST /api/leads → insert lead and return that lead
+// ✅ POST /api/leads → insert lead and return updated grouped leads
 router.post('/', async (req, res) => {
   const {
     user_id,
@@ -65,15 +65,16 @@ router.post('/', async (req, res) => {
   const cleanCompany = company.trim().length >= 2 ? company.trim() : 'Untitled Company';
 
   try {
-    const insertResult = await pool.query(
+    await pool.query(
       `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-       RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
       [user_id, cleanCompany, contact, email, stage, notes]
     );
 
-    const insertedLead = insertResult.rows[0];
-    res.status(201).json(insertedLead);
+    // Return updated leads grouped
+    const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [user_id]);
+    const groupedLeads = groupLeadsByStage(result.rows);
+    res.status(201).json(groupedLeads);
 
   } catch (err) {
     console.error('❌ Error adding lead:', err);
