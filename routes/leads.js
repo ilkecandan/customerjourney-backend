@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// ✅ Utility: Group leads by stage
+// ✅ Group leads by stage
 function groupLeadsByStage(leads) {
   const grouped = {
     awareness: [],
@@ -24,7 +24,7 @@ function groupLeadsByStage(leads) {
   return grouped;
 }
 
-// ✅ GET /api/leads/:userId → grouped leads for user
+// ✅ GET: /api/leads/:userId → grouped leads
 router.get('/:userId', async (req, res) => {
   const requestedUserId = parseInt(req.params.userId);
   const providedUserId = parseInt(req.headers['x-user-id']);
@@ -47,7 +47,7 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// ✅ POST /api/leads → insert lead and return updated grouped leads
+// ✅ POST: /api/leads → insert new lead
 router.post('/', async (req, res) => {
   const {
     user_id,
@@ -71,18 +71,16 @@ router.post('/', async (req, res) => {
       [user_id, cleanCompany, contact, email, stage, notes]
     );
 
-    // Return updated leads grouped
     const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [user_id]);
     const groupedLeads = groupLeadsByStage(result.rows);
     res.status(201).json(groupedLeads);
-
   } catch (err) {
     console.error('❌ Error adding lead:', err);
     res.status(500).json({ error: 'Failed to add lead' });
   }
 });
 
-// ✅ PUT /api/leads/:id → update a specific lead
+// ✅ PUT: /api/leads/:id → update a lead
 router.put('/:id', async (req, res) => {
   const leadId = parseInt(req.params.id);
   const providedUserId = parseInt(req.headers['x-user-id']);
