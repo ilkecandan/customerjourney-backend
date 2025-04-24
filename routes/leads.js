@@ -89,23 +89,24 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ error: 'Invalid lead ID or user ID' });
   }
 
+  // 🧼 Sanitize with default fallbacks
   const {
-    company,
-    contact,
-    email,
-    phone,
-    currentStage,
-    source,
-    industry,
-    status,
-    notes,
+    company = '',
+    contact = '',
+    email = '',
+    phone = '',
+    currentStage = 'awareness',
+    source = '',
+    industry = '',
+    status = '',
+    notes = '',
     contentStrategies = [],
-    lastContact
+    lastContact = null
   } = req.body;
 
   try {
-    await pool.query(
-      `UPDATE leads_clean SET
+    const updateQuery = `
+      UPDATE leads_clean SET
         company = $1,
         contact = $2,
         email = $3,
@@ -118,25 +119,31 @@ router.put('/:id', async (req, res) => {
         content_strategies = $10,
         last_contact = $11,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12 AND user_id = $13`,
-      [
-        company,
-        contact,
-        email,
-        phone,
-        currentStage || 'awareness',
-        source,
-        industry,
-        status,
-        notes,
-        JSON.stringify(contentStrategies),
-        lastContact,
-        leadId,
-        providedUserId
-      ]
-    );
+      WHERE id = $12 AND user_id = $13
+    `;
 
-    const updated = await pool.query('SELECT * FROM leads_clean WHERE id = $1 AND user_id = $2', [leadId, providedUserId]);
+    const values = [
+      company,
+      contact,
+      email,
+      phone,
+      currentStage,
+      source,
+      industry,
+      status,
+      notes,
+      JSON.stringify(Array.isArray(contentStrategies) ? contentStrategies : []),
+      lastContact,
+      leadId,
+      providedUserId
+    ];
+
+    await pool.query(updateQuery, values);
+
+    const updated = await pool.query(
+      'SELECT * FROM leads_clean WHERE id = $1 AND user_id = $2',
+      [leadId, providedUserId]
+    );
 
     if (updated.rows.length === 0) {
       return res.status(404).json({ error: 'Lead not found or not owned by user' });
@@ -145,6 +152,7 @@ router.put('/:id', async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error('❌ Error updating lead:', err);
+    console.error('🪵 Request Body:', req.body);
     res.status(500).json({ error: 'Failed to update lead' });
   }
 });
