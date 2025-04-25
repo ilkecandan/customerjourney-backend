@@ -1,7 +1,8 @@
-// 📄 routes/leads.js - Final CORS-Fixed Version
+// 📄 routes/leads.js – Final CORS-Credential-Friendly Version
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const cors = require('cors');
 
 // ✅ Allowed Origins
 const allowedOrigins = [
@@ -9,7 +10,27 @@ const allowedOrigins = [
   'http://localhost:3000'
 ];
 
-// ✅ Manual CORS headers (for credentials mode)
+// ✅ Dynamic CORS middleware
+const corsOptionsDelegate = function (req, callback) {
+  const origin = req.header('Origin');
+  if (!origin || allowedOrigins.includes(origin)) {
+    callback(null, {
+      origin: origin,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'x-user-id'],
+      optionsSuccessStatus: 200
+    });
+  } else {
+    callback(new Error('Not allowed by CORS'), null);
+  }
+};
+
+// ✅ Apply CORS middleware first
+router.use(cors(corsOptionsDelegate));
+router.options('*', cors(corsOptionsDelegate));
+
+// ✅ Optional: Add headers manually for double safety
 router.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
@@ -19,11 +40,6 @@ router.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-user-id');
   }
   next();
-});
-
-// ✅ OPTIONS preflight response for all routes
-router.options('*', (req, res) => {
-  res.sendStatus(204);
 });
 
 // ✅ Grouping helper
@@ -211,6 +227,11 @@ router.delete('/:id', async (req, res) => {
     console.error('❌ Database Error:', err);
     res.status(500).json({ error: 'Failed to delete lead' });
   }
+});
+
+// ✅ Final fallback for any stray OPTIONS requests
+router.options('*', (req, res) => {
+  res.sendStatus(204);
 });
 
 module.exports = router;
