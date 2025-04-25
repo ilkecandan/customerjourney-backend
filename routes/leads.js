@@ -1,32 +1,32 @@
-// 📄 routes/leads.js - Cleaned CORS-safe version
+// 📄 routes/leads.js - Final CORS-fixed version
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const cors = require('cors');
 
-// ✅ Configure CORS properly
+// ✅ Strict dynamic CORS origin check
 const allowedOrigins = [
   'https://ilkecandan.github.io',
   'http://localhost:3000'
 ];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin); // ✅ Return specific origin
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-user-id'],
-  credentials: true,
-  optionsSuccessStatus: 200
+const corsOptionsDelegate = function (req, callback) {
+  const origin = req.header('Origin');
+  if (!origin || allowedOrigins.includes(origin)) {
+    callback(null, {
+      origin: origin,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'x-user-id'],
+      optionsSuccessStatus: 200
+    });
+  } else {
+    callback(new Error('Not allowed by CORS'), null);
+  }
 };
 
-
-router.use(cors(corsOptions));
-router.options('*', cors(corsOptions));
+router.use(cors(corsOptionsDelegate));
+router.options('*', cors(corsOptionsDelegate));
 
 // ✅ Helper: Group leads by stage
 function groupLeadsByStage(leads) {
@@ -75,7 +75,7 @@ router.get('/:userId', async (req, res) => {
     const groupedLeads = groupLeadsByStage(result.rows);
     res.header('Cache-Control', 'no-store, max-age=0');
     res.json(groupedLeads);
-    
+
   } catch (err) {
     console.error('❌ Database Error:', err);
     res.status(500).json({ error: 'Failed to fetch leads' });
@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
     const groupedLeads = groupLeadsByStage(result.rows);
 
     res.status(201).header('Cache-Control', 'no-store').json(groupedLeads);
-    
+
   } catch (err) {
     console.error('❌ Database Error:', err);
     res.status(500).json({ error: 'Failed to add lead' });
