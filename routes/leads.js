@@ -54,7 +54,7 @@ router.post('/', async (req, res) => {
     company = '',
     contact = '',
     email = '',
-    stage = 'awareness',
+currentStage = 'awareness',  // Changed from 'stage' to 'currentStage'
     notes = ''
   } = req.body;
 
