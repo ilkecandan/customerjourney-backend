@@ -13,9 +13,9 @@ const allowedOrigins = [
 // ✅ Dynamic CORS Middleware
 const corsOptionsDelegate = function (req, callback) {
   const origin = req.header('Origin');
-  if (!origin || allowedOrigins.includes(origin)) {
+  if (allowedOrigins.includes(origin)) {
     callback(null, {
-      origin: origin,
+      origin: true, // Reflect the request origin
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'x-user-id'],
