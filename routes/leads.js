@@ -39,19 +39,26 @@ router.use((req, res, next) => {
 });
 
 // 🔹 Helper Functions
+
 function groupLeadsByStage(leads) {
   const validStages = ['awareness', 'interest', 'intent', 'evaluation', 'purchase'];
   const grouped = { awareness: [], interest: [], intent: [], evaluation: [], purchase: [] };
 
   leads.forEach(lead => {
     const stage = validStages.includes(lead.stage) ? lead.stage : 'awareness';
+
     grouped[stage].push({
       ...lead,
       currentStage: stage,
       company: lead.company || 'Unknown Company',
       contact: lead.contact || '',
       email: lead.email || '',
-      notes: lead.notes || ''
+      notes: lead.notes || '',
+      content: lead.content || '',
+      contentStrategies: (lead.content || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
     });
   });
 
