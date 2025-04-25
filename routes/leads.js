@@ -122,22 +122,26 @@ router.post('/', async (req, res) => {
 
 
 // 🔹 GET metrics for user
+// 🔹 GET metrics for user (refactored with real, calculated advanced analytics)
 router.get('/metrics/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
     const headerUserId = parseInt(req.headers['x-user-id']);
+
     if (isNaN(userId) || userId !== headerUserId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
     const result = await pool.query(
-      'SELECT stage, created_at FROM leads_clean WHERE user_id = $1',
+      'SELECT id, stage, created_at, notes FROM leads_clean WHERE user_id = $1',
       [userId]
     );
 
     const leads = result.rows;
-    const counts = {
-      total: leads.length,
+    const now = new Date();
+    const daysAgo = (date) => (now - new Date(date)) / (1000 * 60 * 60 * 24);
+
+    const stageCounts = {
       awareness: 0,
       interest: 0,
       intent: 0,
@@ -145,27 +149,59 @@ router.get('/metrics/:userId', async (req, res) => {
       purchase: 0
     };
 
+    let totalDaysInFunnel = 0;
+    let hotLeads = 0;
+    let staleLeads = 0;
+    let recentLeads = 0;
+
     leads.forEach(lead => {
-      const stage = lead.stage;
-      if (counts[stage] !== undefined) {
-        counts[stage]++;
+      const stage = stageCounts[lead.stage] !== undefined ? lead.stage : 'awareness';
+      stageCounts[stage]++;
+
+      const age = daysAgo(lead.created_at);
+      totalDaysInFunnel += age;
+
+      if (age <= 7) recentLeads++;
+
+      if (['intent', 'evaluation', 'purchase'].includes(stage) && age <= 7) {
+        hotLeads++;
+      }
+
+      if (age > 14 && ['awareness', 'interest'].includes(stage)) {
+        staleLeads++;
       }
     });
 
-    const considerationCount = counts.intent + counts.evaluation;
-    const awarenessToInterest = counts.awareness > 0 ? Math.round((counts.interest / counts.awareness) * 100) : 0;
-    const interestToConsideration = counts.interest > 0 ? Math.round((considerationCount / counts.interest) * 100) : 0;
-    const conversionRate = counts.awareness > 0 ? Math.round((counts.purchase / counts.awareness) * 100) : 0;
+    const totalLeads = leads.length;
+    const considerationCount = stageCounts.intent + stageCounts.evaluation;
+    const awarenessToInterest = stageCounts.awareness > 0
+      ? Math.round((stageCounts.interest / stageCounts.awareness) * 100)
+      : 0;
+    const interestToConsideration = stageCounts.interest > 0
+      ? Math.round((considerationCount / stageCounts.interest) * 100)
+      : 0;
+    const conversionRate = stageCounts.awareness > 0
+      ? Math.round((stageCounts.purchase / stageCounts.awareness) * 100)
+      : 0;
 
     res.json({
-      totalLeads: counts.total,
+      totalLeads,
       awarenessToInterest,
       interestToConsideration,
-      conversionRate
+      conversionRate,
+      avgTimeInFunnel: totalLeads > 0 ? +(totalDaysInFunnel / totalLeads).toFixed(1) : null,
+      stageDistribution: Object.entries(stageCounts).reduce((acc, [stage, count]) => {
+        acc[stage] = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0;
+        return acc;
+      }, {}),
+      leadsAddedThisWeek: recentLeads,
+      inferredHotLeads: hotLeads,
+      engagementRate: totalLeads > 0 ? Math.round((recentLeads / totalLeads) * 100) : 0,
+      staleLeads
     });
 
   } catch (err) {
-    console.error('Metrics error:', err);
+    console.error('📉 Metrics error:', err);
     res.status(500).json({ error: 'Failed to calculate metrics' });
   }
 });
