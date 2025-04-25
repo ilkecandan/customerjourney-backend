@@ -5,16 +5,25 @@ const pool = require('../db');
 const cors = require('cors');
 
 // ✅ Configure CORS properly
+const allowedOrigins = [
+  'https://ilkecandan.github.io',
+  'http://localhost:3000'
+];
+
 const corsOptions = {
-  origin: [
-    'https://ilkecandan.github.io',
-    'http://localhost:3000'
-  ],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin); // ✅ Return specific origin
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'x-user-id'],
   credentials: true,
   optionsSuccessStatus: 200
 };
+
 
 router.use(cors(corsOptions));
 router.options('*', cors(corsOptions));
