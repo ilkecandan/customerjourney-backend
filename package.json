@@ -1,15 +1,54 @@
 {
   "name": "customerjourney-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "Backend API for Customer Journey Funnel Management",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest --coverage",
+    "migrate": "node migrations/migrate.js",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "pg": "^8.8.0"
-  }
+    "helmet": "^7.0.0",
+    "pg": "^8.11.0",
+    "pg-format": "^1.0.4",
+    "rate-limit-flexible": "^2.4.1",
+    "express-validator": "^7.0.1",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.5.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.38.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-node": "^11.1.0",
+    "prettier": "^2.8.7"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "customer-journey",
+    "funnel",
+    "marketing",
+    "crm",
+    "api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/customerjourney-backend.git"
+  },
+  "license": "MIT",
+  "private": true
 }
