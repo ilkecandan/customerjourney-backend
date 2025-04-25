@@ -2,7 +2,6 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const cors = require('cors');
 
 // ✅ Allowed Origins
 const allowedOrigins = [
@@ -10,23 +9,7 @@ const allowedOrigins = [
   'http://localhost:3000'
 ];
 
-// ✅ Dynamic CORS middleware
-const corsOptionsDelegate = function (req, callback) {
-  const origin = req.header('Origin');
-  if (!origin || allowedOrigins.includes(origin)) {
-    callback(null, {
-      origin: origin,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'x-user-id'],
-      optionsSuccessStatus: 200
-    });
-  } else {
-    callback(new Error('Not allowed by CORS'), null);
-  }
-};
-
-// ✅ 🛡️ Manual hard override (in case of middleware bugs/proxy issues)
+// ✅ Manual CORS headers (for credentials mode)
 router.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
@@ -38,8 +21,10 @@ router.use((req, res, next) => {
   next();
 });
 
-router.use(cors(corsOptionsDelegate));
-router.options('*', cors(corsOptionsDelegate));
+// ✅ OPTIONS preflight response for all routes
+router.options('*', (req, res) => {
+  res.sendStatus(204);
+});
 
 // ✅ Grouping helper
 function groupLeadsByStage(leads) {
@@ -226,11 +211,6 @@ router.delete('/:id', async (req, res) => {
     console.error('❌ Database Error:', err);
     res.status(500).json({ error: 'Failed to delete lead' });
   }
-});
-
-// ✅ Final fallback for any stray OPTIONS requests
-router.options('*', (req, res) => {
-  res.sendStatus(204);
 });
 
 module.exports = router;
