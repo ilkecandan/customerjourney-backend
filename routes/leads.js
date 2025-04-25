@@ -120,6 +120,57 @@ router.post('/', async (req, res) => {
   }
 });
 
+
+// 🔹 GET metrics for user
+router.get('/metrics/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const headerUserId = parseInt(req.headers['x-user-id']);
+    if (isNaN(userId) || userId !== headerUserId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const result = await pool.query(
+      'SELECT stage, created_at FROM leads_clean WHERE user_id = $1',
+      [userId]
+    );
+
+    const leads = result.rows;
+    const counts = {
+      total: leads.length,
+      awareness: 0,
+      interest: 0,
+      intent: 0,
+      evaluation: 0,
+      purchase: 0
+    };
+
+    leads.forEach(lead => {
+      const stage = lead.stage;
+      if (counts[stage] !== undefined) {
+        counts[stage]++;
+      }
+    });
+
+    const considerationCount = counts.intent + counts.evaluation;
+    const awarenessToInterest = counts.awareness > 0 ? Math.round((counts.interest / counts.awareness) * 100) : 0;
+    const interestToConsideration = counts.interest > 0 ? Math.round((considerationCount / counts.interest) * 100) : 0;
+    const conversionRate = counts.awareness > 0 ? Math.round((counts.purchase / counts.awareness) * 100) : 0;
+
+    res.json({
+      totalLeads: counts.total,
+      awarenessToInterest,
+      interestToConsideration,
+      conversionRate
+    });
+
+  } catch (err) {
+    console.error('Metrics error:', err);
+    res.status(500).json({ error: 'Failed to calculate metrics' });
+  }
+});
+
+
 // 🔹 PUT update lead
 router.put('/:id', async (req, res) => {
   try {
