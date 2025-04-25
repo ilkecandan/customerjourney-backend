@@ -211,7 +211,6 @@ router.put('/:id', async (req, res) => {
         email = COALESCE($3, email),
         stage = COALESCE($4, stage),
         notes = COALESCE($5, notes),
-        updated_at = CURRENT_TIMESTAMP
        WHERE id = $6 AND user_id = $7
        RETURNING *`,
       [
