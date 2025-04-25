@@ -1,15 +1,16 @@
-// 📄 routes/leads.js - Final CORS-fixed version
+// 📄 routes/leads.js - Final CORS-Fixed Version
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const cors = require('cors');
 
-// ✅ Strict dynamic CORS origin check
+// ✅ Allowed Origins
 const allowedOrigins = [
   'https://ilkecandan.github.io',
   'http://localhost:3000'
 ];
 
+// ✅ Dynamic CORS middleware
 const corsOptionsDelegate = function (req, callback) {
   const origin = req.header('Origin');
   if (!origin || allowedOrigins.includes(origin)) {
@@ -25,10 +26,22 @@ const corsOptionsDelegate = function (req, callback) {
   }
 };
 
+// ✅ 🛡️ Manual hard override (in case of middleware bugs/proxy issues)
+router.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-user-id');
+  }
+  next();
+});
+
 router.use(cors(corsOptionsDelegate));
 router.options('*', cors(corsOptionsDelegate));
 
-// ✅ Helper: Group leads by stage
+// ✅ Grouping helper
 function groupLeadsByStage(leads) {
   const grouped = {
     awareness: [],
@@ -59,11 +72,11 @@ router.get('/:userId', async (req, res) => {
     const providedUserId = parseInt(req.headers['x-user-id']);
 
     if (isNaN(requestedUserId)) {
-      return res.status(400).json({ error: 'Invalid user ID', details: `Received: ${req.params.userId}` });
+      return res.status(400).json({ error: 'Invalid user ID' });
     }
 
     if (requestedUserId !== providedUserId) {
-      return res.status(403).json({ error: 'Unauthorized access', details: 'User ID mismatch' });
+      return res.status(403).json({ error: 'Unauthorized access' });
     }
 
     const result = await pool.query({
@@ -213,6 +226,11 @@ router.delete('/:id', async (req, res) => {
     console.error('❌ Database Error:', err);
     res.status(500).json({ error: 'Failed to delete lead' });
   }
+});
+
+// ✅ Final fallback for any stray OPTIONS requests
+router.options('*', (req, res) => {
+  res.sendStatus(204);
 });
 
 module.exports = router;
