@@ -1,8 +1,26 @@
-// 📄 routes/leads.js - Updated Version
-
+// 📄 routes/leads.js - Complete CORS-enabled version
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const cors = require('cors');
+
+// Configure CORS options
+const corsOptions = {
+  origin: [
+    'https://ilkecandan.github.io',
+    'http://localhost:3000' // For local development
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-user-id'],
+  credentials: true,
+  optionsSuccessStatus: 200 // For legacy browser support
+};
+
+// Apply CORS middleware to all routes
+router.use(cors(corsOptions));
+
+// Handle preflight requests
+router.options('*', cors(corsOptions));
 
 // ✅ Group leads by stage with consistent field names
 function groupLeadsByStage(leads) {
@@ -15,12 +33,12 @@ function groupLeadsByStage(leads) {
   };
 
   leads.forEach(lead => {
-    const stage = lead.stage || lead.current_stage || 'awareness'; // Accept both fields
+    const stage = lead.stage || lead.current_stage || 'awareness';
     if (grouped[stage]) {
       grouped[stage].push({
         ...lead,
-        currentStage: stage, // Ensure consistent field in response
-        contentStrategies: lead.content_strategies || [] // Normalize field name
+        currentStage: stage,
+        contentStrategies: lead.content_strategies || []
       });
     }
   });
@@ -28,14 +46,18 @@ function groupLeadsByStage(leads) {
   return grouped;
 }
 
-// ✅ Enhanced GET endpoint with better error handling
+// ✅ Enhanced GET endpoint with CORS headers
 router.get('/:userId', async (req, res) => {
   try {
+    // Set additional CORS headers
+    res.header('Access-Control-Allow-Origin', corsOptions.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+
     const requestedUserId = parseInt(req.params.userId);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
     // Validate IDs
-    if (isNaN(requestedUserId) {
+    if (isNaN(requestedUserId)) {
       return res.status(400).json({ 
         error: 'Invalid user ID',
         details: `Received: ${req.params.userId}`
@@ -53,10 +75,13 @@ router.get('/:userId', async (req, res) => {
     const result = await pool.query({
       text: 'SELECT * FROM leads_clean WHERE user_id = $1',
       values: [requestedUserId],
-      timeout: 5000 // 5 second timeout
+      timeout: 5000
     });
 
     const groupedLeads = groupLeadsByStage(result.rows);
+    
+    // Add cache control headers
+    res.header('Cache-Control', 'no-store, max-age=0');
     res.json(groupedLeads);
     
   } catch (err) {
@@ -73,9 +98,13 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// ✅ Improved POST endpoint with validation
+// ✅ Improved POST endpoint with CORS support
 router.post('/', async (req, res) => {
   try {
+    // Set CORS headers
+    res.header('Access-Control-Allow-Origin', corsOptions.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+
     const { user_id, company = '', contact = '', email = '', stage = 'awareness', notes = '' } = req.body;
 
     // Validate required fields
@@ -89,7 +118,7 @@ router.post('/', async (req, res) => {
 
     const cleanCompany = company.trim().length >= 2 ? company.trim() : 'Untitled Company';
 
-    // Insert with returning clause for immediate response
+    // Insert with returning clause
     const insertResult = await pool.query(
       `INSERT INTO leads_clean 
        (user_id, company, contact, email, stage, notes, created_at)
@@ -102,7 +131,9 @@ router.post('/', async (req, res) => {
     const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [user_id]);
     const groupedLeads = groupLeadsByStage(result.rows);
     
-    res.status(201).json(groupedLeads);
+    res.status(201)
+      .header('Cache-Control', 'no-store')
+      .json(groupedLeads);
     
   } catch (err) {
     console.error('❌ Database Error:', {
@@ -118,9 +149,13 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ✅ Robust PUT endpoint with field normalization
+// ✅ Robust PUT endpoint with CORS support
 router.put('/:id', async (req, res) => {
   try {
+    // Set CORS headers
+    res.header('Access-Control-Allow-Origin', corsOptions.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+
     const leadId = parseInt(req.params.id);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
@@ -141,13 +176,13 @@ router.put('/:id', async (req, res) => {
       contact = '',
       email = '',
       phone = '',
-      stage = req.body.currentStage || req.body.stage || 'awareness', // Accept both fields
+      stage = req.body.currentStage || req.body.stage || 'awareness',
       source = '',
       industry = '',
       status = '',
       notes = '',
       contentStrategies = [],
-      lastContact = new Date().toISOString() // Default to now if not provided
+      lastContact = new Date().toISOString()
     } = req.body;
 
     // Validate required fields
@@ -158,7 +193,7 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Execute update with parameterized query
+    // Execute update
     const updateResult = await pool.query(
       `UPDATE leads_clean SET
         company = $1,
@@ -192,7 +227,6 @@ router.put('/:id', async (req, res) => {
       ]
     );
 
-    // Verify update
     if (updateResult.rowCount === 0) {
       return res.status(404).json({ 
         error: 'Lead not found or not owned by user',
@@ -200,12 +234,12 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Return updated lead
-    res.json({
-      ...updateResult.rows[0],
-      currentStage: updateResult.rows[0].stage, // Consistent field name
-      contentStrategies: updateResult.rows[0].content_strategies || [] // Normalized field
-    });
+    res.header('Cache-Control', 'no-store')
+       .json({
+         ...updateResult.rows[0],
+         currentStage: updateResult.rows[0].stage,
+         contentStrategies: updateResult.rows[0].content_strategies || []
+       });
     
   } catch (err) {
     console.error('❌ Database Error:', {
@@ -217,6 +251,45 @@ router.put('/:id', async (req, res) => {
     
     res.status(500).json({ 
       error: 'Failed to update lead',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
+// ✅ Add DELETE endpoint for CORS completeness
+router.delete('/:id', async (req, res) => {
+  try {
+    res.header('Access-Control-Allow-Origin', corsOptions.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+
+    const leadId = parseInt(req.params.id);
+    const providedUserId = parseInt(req.headers['x-user-id']);
+
+    if (isNaN(leadId) || isNaN(providedUserId)) {
+      return res.status(400).json({ error: 'Invalid lead ID or user ID' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM leads_clean WHERE id = $1 AND user_id = $2 RETURNING *',
+      [leadId, providedUserId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Lead not found or not owned by user' });
+    }
+
+    res.header('Cache-Control', 'no-store')
+       .json({ success: true, deletedLead: result.rows[0] });
+    
+  } catch (err) {
+    console.error('❌ Database Error:', {
+      error: err,
+      query: 'DELETE /api/leads/:id',
+      params: req.params
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to delete lead',
       details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
