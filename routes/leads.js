@@ -97,6 +97,7 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
+
 // 🔹 POST create new lead
 router.post('/', async (req, res) => {
   try {
@@ -109,6 +110,13 @@ router.post('/', async (req, res) => {
       notes = '',
       content = ''
     } = req.body;
+
+    // ✅ Normalize content: string or array → comma-separated string
+    const normalizedContent = Array.isArray(content)
+      ? content.map(c => c.trim()).filter(Boolean).join(',')
+      : typeof content === 'string'
+        ? content.trim()
+        : '';
 
     const validationErrors = validateLeadData({ company, email });
     if (validationErrors) {
@@ -128,7 +136,7 @@ router.post('/', async (req, res) => {
         email?.trim() || '',
         leadStage,
         notes?.trim() || '',
-        content
+        normalizedContent
       ]
     );
 
@@ -143,7 +151,6 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to add lead', details: err.message });
   }
 });
-
 
 
 
