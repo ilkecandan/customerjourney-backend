@@ -79,7 +79,7 @@ router.get('/:userId', async (req, res) => {
     const requestedUserId = parseInt(req.params.userId);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
-    if (isNaN(requestedUserId) {
+    if (isNaN(requestedUserId)) {
       return res.status(400).json({ 
         error: 'Invalid user ID',
         details: 'User ID must be a number'
@@ -164,7 +164,7 @@ router.put('/:id', async (req, res) => {
     const leadId = parseInt(req.params.id);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
-    if (isNaN(leadId) {
+    if (isNaN(leadId)) {
       return res.status(400).json({ 
         error: 'Invalid lead ID',
         details: 'Lead ID must be a number'
