@@ -91,18 +91,18 @@ router.put('/:id', async (req, res) => {
 
   // 🧼 Sanitize with default fallbacks
   const {
-    company = '',
-    contact = '',
-    email = '',
-    phone = '',
-stage = 'awareness',
-    source = '',
-    industry = '',
-    status = '',
-    notes = '',
-    contentStrategies = [],
-    lastContact = null
-  } = req.body;
+  company = '',
+  contact = '',
+  email = '',
+  phone = '',
+  currentStage = 'awareness',  // Changed from 'stage' to 'currentStage'
+  source = '',
+  industry = '',
+  status = '',
+  notes = '',
+  contentStrategies = [],
+  lastContact = null
+} = req.body;
 
   try {
     const updateQuery = `
