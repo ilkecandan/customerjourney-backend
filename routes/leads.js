@@ -1,4 +1,4 @@
-// 📄 routes/leads.js – Fully Compatible Backend Update
+// 📄 routes/leads.js – Fully Updated Backend
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
@@ -38,13 +38,39 @@ router.use((req, res, next) => {
   next();
 });
 
+// Helper functions
 function groupLeadsByStage(leads) {
+  const validStages = ['awareness', 'interest', 'intent', 'evaluation', 'purchase'];
   const grouped = { awareness: [], interest: [], intent: [], evaluation: [], purchase: [] };
+  
   leads.forEach(lead => {
-    const stage = lead.stage || 'awareness';
-    grouped[stage].push({ ...lead, currentStage: stage });
+    const stage = validStages.includes(lead.stage) ? lead.stage : 'awareness';
+    grouped[stage].push({ 
+      ...lead, 
+      currentStage: stage,
+      // Ensure all required fields exist
+      company: lead.company || 'Unknown Company',
+      contact: lead.contact || '',
+      email: lead.email || '',
+      notes: lead.notes || ''
+    });
   });
+  
   return grouped;
+}
+
+function validateLeadData(leadData) {
+  const errors = [];
+  
+  if (!leadData.company || leadData.company.trim().length < 2) {
+    errors.push('Company name must be at least 2 characters');
+  }
+  
+  if (leadData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadData.email)) {
+    errors.push('Invalid email format');
+  }
+  
+  return errors.length > 0 ? errors : null;
 }
 
 // GET leads
@@ -53,18 +79,32 @@ router.get('/:userId', async (req, res) => {
     const requestedUserId = parseInt(req.params.userId);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
-    if (isNaN(requestedUserId) || requestedUserId !== providedUserId) {
-      return res.status(403).json({ error: 'Unauthorized access' });
+    if (isNaN(requestedUserId) {
+      return res.status(400).json({ 
+        error: 'Invalid user ID',
+        details: 'User ID must be a number'
+      });
+    }
+
+    if (requestedUserId !== providedUserId) {
+      return res.status(403).json({ 
+        error: 'Unauthorized access',
+        details: 'User ID mismatch'
+      });
     }
 
     const result = await pool.query(
-      'SELECT * FROM leads_clean WHERE user_id = $1',
+      'SELECT * FROM leads_clean WHERE user_id = $1 ORDER BY created_at DESC',
       [requestedUserId]
     );
 
     res.json(groupLeadsByStage(result.rows));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch leads' });
+    console.error('GET leads error:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch leads',
+      details: err.message
+    });
   }
 });
 
@@ -73,20 +113,48 @@ router.post('/', async (req, res) => {
   try {
     const { user_id, company, contact, email, stage = 'awareness', notes = '' } = req.body;
 
-    if (!user_id || !company.trim()) {
-      return res.status(400).json({ error: 'User ID and company name are required' });
+    if (!user_id || isNaN(parseInt(user_id))) {
+      return res.status(400).json({ 
+        error: 'Invalid user ID',
+        details: 'User ID is required and must be a number'
+      });
     }
 
-    await pool.query(
-      `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
-      [user_id, company, contact || '', email || '', stage, notes || '']
+    const validationErrors = validateLeadData({ company, email });
+    if (validationErrors) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validationErrors
+      });
+    }
+
+    const validStages = ['awareness', 'interest', 'intent', 'evaluation', 'purchase'];
+    const leadStage = validStages.includes(stage) ? stage : 'awareness';
+
+    const result = await pool.query(
+      `INSERT INTO leads_clean 
+        (user_id, company, contact, email, stage, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [user_id, company.trim(), contact?.trim() || '', email?.trim() || '', leadStage, notes?.trim() || '']
     );
 
-    const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [user_id]);
-    res.status(201).json(groupLeadsByStage(result.rows));
+    if (result.rows.length === 0) {
+      throw new Error('No rows returned after insert');
+    }
+
+    const allLeads = await pool.query(
+      'SELECT * FROM leads_clean WHERE user_id = $1 ORDER BY created_at DESC',
+      [user_id]
+    );
+    
+    res.status(201).json(groupLeadsByStage(allLeads.rows));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to add lead' });
+    console.error('POST lead error:', err);
+    res.status(500).json({ 
+      error: 'Failed to add lead',
+      details: err.message
+    });
   }
 });
 
@@ -96,37 +164,83 @@ router.put('/:id', async (req, res) => {
     const leadId = parseInt(req.params.id);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
-    if (isNaN(leadId) || isNaN(providedUserId)) {
-      return res.status(400).json({ error: 'Invalid IDs' });
+    if (isNaN(leadId) {
+      return res.status(400).json({ 
+        error: 'Invalid lead ID',
+        details: 'Lead ID must be a number'
+      });
+    }
+
+    if (isNaN(providedUserId)) {
+      return res.status(400).json({ 
+        error: 'Invalid user ID',
+        details: 'User ID must be a number'
+      });
+    }
+
+    // Verify lead exists and belongs to user
+    const existingLead = await pool.query(
+      'SELECT * FROM leads_clean WHERE id = $1 AND user_id = $2',
+      [leadId, providedUserId]
+    );
+
+    if (existingLead.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Lead not found',
+        details: 'Lead either does not exist or does not belong to this user'
+      });
     }
 
     const { company, contact, email, stage, notes } = req.body;
+    const validationErrors = validateLeadData({ company, email });
+    
+    if (validationErrors) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validationErrors
+      });
+    }
 
-    await pool.query(
+    const validStages = ['awareness', 'interest', 'intent', 'evaluation', 'purchase'];
+    const leadStage = validStages.includes(stage) ? stage : existingLead.rows[0].stage;
+
+    const result = await pool.query(
       `UPDATE leads_clean SET
-        company = $1,
-        contact = $2,
-        email = $3,
-        stage = $4,
-        notes = $5,
+        company = COALESCE($1, company),
+        contact = COALESCE($2, contact),
+        email = COALESCE($3, email),
+        stage = COALESCE($4, stage),
+        notes = COALESCE($5, notes),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6 AND user_id = $7 RETURNING *`,
+       WHERE id = $6 AND user_id = $7
+       RETURNING *`,
       [
-        company || '',
-        contact || '',
-        email || '',
-        stage || 'awareness',
-        notes || '',
+        company?.trim() || null,
+        contact?.trim() || null,
+        email?.trim() || null,
+        leadStage,
+        notes?.trim() || null,
         leadId,
         providedUserId
       ]
     );
 
-    const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [providedUserId]);
-    res.json(groupLeadsByStage(result.rows));
+    if (result.rows.length === 0) {
+      throw new Error('No rows returned after update');
+    }
 
+    const allLeads = await pool.query(
+      'SELECT * FROM leads_clean WHERE user_id = $1 ORDER BY created_at DESC',
+      [providedUserId]
+    );
+    
+    res.json(groupLeadsByStage(allLeads.rows));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update lead' });
+    console.error('PUT lead error:', err);
+    res.status(500).json({ 
+      error: 'Failed to update lead',
+      details: err.message
+    });
   }
 });
 
@@ -136,20 +250,54 @@ router.delete('/:id', async (req, res) => {
     const leadId = parseInt(req.params.id);
     const providedUserId = parseInt(req.headers['x-user-id']);
 
-    if (isNaN(leadId) || isNaN(providedUserId)) {
-      return res.status(400).json({ error: 'Invalid lead ID or user ID' });
+    if (isNaN(leadId)) {
+      return res.status(400).json({ 
+        error: 'Invalid lead ID',
+        details: 'Lead ID must be a number'
+      });
     }
 
-    await pool.query(
-      'DELETE FROM leads_clean WHERE id = $1 AND user_id = $2',
+    if (isNaN(providedUserId)) {
+      return res.status(400).json({ 
+        error: 'Invalid user ID',
+        details: 'User ID must be a number'
+      });
+    }
+
+    // Verify lead exists before deletion
+    const existingLead = await pool.query(
+      'SELECT * FROM leads_clean WHERE id = $1 AND user_id = $2',
       [leadId, providedUserId]
     );
 
-    const result = await pool.query('SELECT * FROM leads_clean WHERE user_id = $1', [providedUserId]);
-    res.json(groupLeadsByStage(result.rows));
+    if (existingLead.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Lead not found',
+        details: 'Lead either does not exist or does not belong to this user'
+      });
+    }
 
+    const deleteResult = await pool.query(
+      'DELETE FROM leads_clean WHERE id = $1 AND user_id = $2 RETURNING *',
+      [leadId, providedUserId]
+    );
+
+    if (deleteResult.rows.length === 0) {
+      throw new Error('No rows were deleted');
+    }
+
+    const allLeads = await pool.query(
+      'SELECT * FROM leads_clean WHERE user_id = $1 ORDER BY created_at DESC',
+      [providedUserId]
+    );
+    
+    res.json(groupLeadsByStage(allLeads.rows));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete lead' });
+    console.error('DELETE lead error:', err);
+    res.status(500).json({ 
+      error: 'Failed to delete lead',
+      details: err.message
+    });
   }
 });
 
