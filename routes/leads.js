@@ -234,6 +234,7 @@ router.get('/metrics/:userId', async (req, res) => {
 
 
 // 🔹 PUT update lead
+
 router.put('/:id', async (req, res) => {
   try {
     const leadId = parseInt(req.params.id);
@@ -242,7 +243,11 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid ID(s)' });
     }
 
-    const { company, contact, email, stage, notes } = req.body;
+    let { company, contact, email, stage, notes, content } = req.body;
+
+    // ✅ Normalize content if it's an array
+    content = Array.isArray(content) ? content.join(',') : content?.trim() || '';
+
     const validationErrors = validateLeadData({ company, email });
     if (validationErrors) {
       return res.status(400).json({ error: 'Validation failed', details: validationErrors });
@@ -257,8 +262,9 @@ router.put('/:id', async (req, res) => {
         contact = COALESCE($2, contact),
         email = COALESCE($3, email),
         stage = COALESCE($4, stage),
-        notes = COALESCE($5, notes)
-       WHERE id = $6 AND user_id = $7
+        notes = COALESCE($5, notes),
+        content = COALESCE($6, content)
+       WHERE id = $7 AND user_id = $8
        RETURNING *`,
       [
         company?.trim() || null,
@@ -266,6 +272,7 @@ router.put('/:id', async (req, res) => {
         email?.trim() || null,
         leadStage,
         notes?.trim() || null,
+        content,
         leadId,
         userId
       ]
@@ -286,6 +293,7 @@ router.put('/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update lead', details: err.message });
   }
 });
+
 
 // 🔹 DELETE lead
 router.delete('/:id', async (req, res) => {
