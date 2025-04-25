@@ -93,7 +93,16 @@ router.get('/:userId', async (req, res) => {
 // 🔹 POST create new lead
 router.post('/', async (req, res) => {
   try {
-    const { user_id, company, contact, email, stage = 'awareness', notes = '' } = req.body;
+    const {
+      user_id,
+      company,
+      contact,
+      email,
+      stage = 'awareness',
+      notes = '',
+      content = ''
+    } = req.body;
+
     const validationErrors = validateLeadData({ company, email });
     if (validationErrors) {
       return res.status(400).json({ error: 'Validation failed', details: validationErrors });
@@ -103,9 +112,17 @@ router.post('/', async (req, res) => {
     const leadStage = validStages.includes(stage) ? stage : 'awareness';
 
     const result = await pool.query(
-      `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP) RETURNING *`,
-      [user_id, company.trim(), contact?.trim() || '', email?.trim() || '', leadStage, notes?.trim() || '']
+      `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, content, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP) RETURNING *`,
+      [
+        user_id,
+        company.trim(),
+        contact?.trim() || '',
+        email?.trim() || '',
+        leadStage,
+        notes?.trim() || '',
+        content
+      ]
     );
 
     const allLeads = await pool.query(
@@ -119,6 +136,8 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to add lead', details: err.message });
   }
 });
+
+
 
 
 // 🔹 GET metrics for user
