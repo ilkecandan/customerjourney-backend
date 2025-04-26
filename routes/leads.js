@@ -77,6 +77,8 @@ function validateLeadData(leadData) {
 }
 
 // 🔹 GET all leads for a user
+// 📉 Updated GET and POST leads routes
+
 router.get('/:userId', async (req, res) => {
   try {
     const requestedUserId = parseInt(req.params.userId);
@@ -90,17 +92,27 @@ router.get('/:userId', async (req, res) => {
       [requestedUserId]
     );
 
-    res.json(groupLeadsByStage(result.rows));
+    const groupedLeads = groupLeadsByStage(result.rows);
+
+    const hasLeads = Object.values(groupedLeads).some(stage => stage.length > 0);
+
+    if (!hasLeads) {
+      console.warn('No leads found for user:', requestedUserId);
+    }
+
+    res.json(groupedLeads);
+
   } catch (err) {
     console.error('GET leads error:', err);
     res.status(500).json({ error: 'Failed to fetch leads', details: err.message });
   }
 });
 
-// 🔹 POST create new lead
+// 📉 Updated POST create new lead
+
 router.post('/', async (req, res) => {
   try {
-    const user_id = parseInt(req.headers['x-user-id']); // 🛡️ Use header, not body
+    const user_id = parseInt(req.headers['x-user-id']); // 🛡️ Still using header
     const {
       company,
       contact,
@@ -147,12 +159,16 @@ router.post('/', async (req, res) => {
       [user_id]
     );
 
-    res.status(201).json(groupLeadsByStage(allLeads.rows));
+    const groupedLeads = groupLeadsByStage(allLeads.rows);
+
+    res.status(201).json(groupedLeads);
+
   } catch (err) {
     console.error('POST lead error:', err);
     res.status(500).json({ error: 'Failed to add lead', details: err.message });
   }
 });
+
 
 
 
