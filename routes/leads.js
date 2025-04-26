@@ -97,12 +97,11 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-
 // 🔹 POST create new lead
 router.post('/', async (req, res) => {
   try {
+    const user_id = parseInt(req.headers['x-user-id']); // 🛡️ Use header, not body
     const {
-      user_id,
       company,
       contact,
       email,
@@ -111,7 +110,10 @@ router.post('/', async (req, res) => {
       content = ''
     } = req.body;
 
-    // ✅ Normalize content: string or array → comma-separated string
+    if (isNaN(user_id)) {
+      return res.status(400).json({ error: 'Missing or invalid user ID in headers' });
+    }
+
     const normalizedContent = Array.isArray(content)
       ? content.map(c => c.trim()).filter(Boolean).join(',')
       : typeof content === 'string'
@@ -126,9 +128,9 @@ router.post('/', async (req, res) => {
     const validStages = ['awareness', 'interest', 'intent', 'evaluation', 'purchase'];
     const leadStage = validStages.includes(stage) ? stage : 'awareness';
 
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO leads_clean (user_id, company, contact, email, stage, notes, content, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
       [
         user_id,
         company.trim(),
@@ -155,19 +157,18 @@ router.post('/', async (req, res) => {
 
 
 // 🔹 GET metrics for user
-// 🔹 GET metrics for user (refactored with real, calculated advanced analytics)
 router.get('/metrics/:userId', async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId);
+    const requestedUserId = parseInt(req.params.userId);
     const headerUserId = parseInt(req.headers['x-user-id']);
 
-    if (isNaN(userId) || userId !== headerUserId) {
-      return res.status(403).json({ error: 'Unauthorized' });
+    if (isNaN(requestedUserId) || requestedUserId !== headerUserId) {
+      return res.status(403).json({ error: 'Unauthorized access' });
     }
 
     const result = await pool.query(
       'SELECT id, stage, created_at, notes FROM leads_clean WHERE user_id = $1',
-      [userId]
+      [requestedUserId]
     );
 
     const leads = result.rows;
@@ -195,14 +196,8 @@ router.get('/metrics/:userId', async (req, res) => {
       totalDaysInFunnel += age;
 
       if (age <= 7) recentLeads++;
-
-      if (['intent', 'evaluation', 'purchase'].includes(stage) && age <= 7) {
-        hotLeads++;
-      }
-
-      if (age > 14 && ['awareness', 'interest'].includes(stage)) {
-        staleLeads++;
-      }
+      if (['intent', 'evaluation', 'purchase'].includes(stage) && age <= 7) hotLeads++;
+      if (age > 14 && ['awareness', 'interest'].includes(stage)) staleLeads++;
     });
 
     const totalLeads = leads.length;
@@ -238,6 +233,7 @@ router.get('/metrics/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to calculate metrics' });
   }
 });
+
 
 
 // 🔹 PUT update lead
