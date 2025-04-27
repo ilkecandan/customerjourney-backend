@@ -1,9 +1,11 @@
-// 📄 index.js
+// 📄 index.js - Updated with proper CORS configuration
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const pool = require('./db');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth');
 const leadsRoutes = require('./routes/leads');
@@ -11,8 +13,40 @@ const leadsRoutes = require('./routes/leads');
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+// ✅ Configure CORS properly
+const allowedOrigins = [
+  'https://funnelflow.live',
+  'http://localhost:3000', // For local development
+  'http://localhost:5173' // For Vite development
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+  credentials: true
+};
+
+// Security middleware
+app.use(helmet());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
 
 // ✅ API status check
 app.get('/', (req, res) => res.send('🧠 FunnelFlow API is running'));
@@ -46,6 +80,12 @@ app.get('/api/debug/leads-columns', async (req, res) => {
 // ✅ Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something broke!' });
+});
 
 // ✅ Server start
 app.listen(port, () => {
