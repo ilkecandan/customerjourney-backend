@@ -1,5 +1,4 @@
 // 📄 routes/leads.js – Complete Updated Version
-
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
@@ -64,7 +63,7 @@ const verifyLeadOwnership = async (req, res, next) => {
     const leadId = parseInt(req.params.id);
     const userId = parseInt(req.user?.id || req.headers['x-user-id']);
     
-    if (isNaN(leadId) {
+    if (isNaN(leadId)) {
       return res.status(400).json({ error: 'Invalid lead ID' });
     }
 
@@ -330,7 +329,7 @@ router.get('/metrics/:userId', authenticateToken, async (req, res) => {
       metrics.totalDaysInFunnel += age;
 
       if (age <= 7) metrics.recentLeads++;
-      if (['intent', 'evaluation', 'purchase'].includes(stage) {
+      if (['intent', 'evaluation', 'purchase'].includes(stage)) {
         if (age <= 7) metrics.hotLeads++;
       }
       if (age > 14 && ['awareness', 'interest'].includes(stage)) {
