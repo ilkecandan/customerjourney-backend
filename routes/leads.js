@@ -5,7 +5,7 @@ const pool = require('../db');
 const cors = require('cors');
 
 const allowedOrigins = [
-  'https://ilkecandan.github.io',
+  'https://funnelflow.live/',
   'http://localhost:3000'
 ];
 
