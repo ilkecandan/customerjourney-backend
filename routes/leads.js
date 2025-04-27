@@ -2,8 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
-
+const { authenticateToken } = require('./auth');  // If auth.js is in the same routes folder
 // 🔹 Constants
 const VALID_STAGES = ['awareness', 'interest', 'intent', 'evaluation', 'purchase'];
 const DEFAULT_STAGE = 'awareness';
