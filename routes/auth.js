@@ -2,22 +2,22 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
-const { validatePassword } = require('../utils/validators');
+const { validatePassword, validateUsername } = require('../utils/validators');
 
 const router = express.Router();
-const SALT_ROUNDS = 12; // Increased from 10 for better security
+const SALT_ROUNDS = 12;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'; // Token expiration
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-// Rate limiting setup (you'll need express-rate-limit)
+// Rate limiting
 const rateLimit = require('express-rate-limit');
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: 'Too many login attempts, please try again later'
 });
 
-// 🔹 Helper Functions
+// Generate JWT token
 const generateToken = (userId, username) => {
   return jwt.sign(
     { id: userId, username },
@@ -26,25 +26,20 @@ const generateToken = (userId, username) => {
   );
 };
 
-// 🔹 Register Route
+// Register Route
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
 
-  // Input validation
-  if (!username || !password) {
+  // Username validation
+  const usernameError = validateUsername(username);
+  if (usernameError) {
     return res.status(400).json({ 
-      error: 'Username and password are required',
-      field: !username ? 'username' : 'password'
-    });
-  }
-
-  if (username.length < 3 || username.length > 30) {
-    return res.status(400).json({ 
-      error: 'Username must be between 3-30 characters',
+      error: usernameError,
       field: 'username'
     });
   }
 
+  // Password validation
   const passwordError = validatePassword(password);
   if (passwordError) {
     return res.status(400).json({ 
@@ -54,7 +49,7 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    // Check if username exists (case-insensitive)
+    // Check if username exists
     const exists = await pool.query(
       'SELECT * FROM user_accounts WHERE LOWER(username) = LOWER($1)',
       [username]
@@ -67,10 +62,8 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Hash password
+    // Hash password and create user
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
-    // Create user
     const result = await pool.query(
       `INSERT INTO user_accounts (username, password) 
        VALUES ($1, $2) 
@@ -79,19 +72,15 @@ router.post('/register', async (req, res) => {
     );
 
     const user = result.rows[0];
-    
-    // Generate JWT token
     const token = generateToken(user.id, user.username);
 
-    // Set secure HTTP-only cookie
     res.cookie('jwt', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    // Return user data (without sensitive info)
     res.status(201).json({
       id: user.id,
       username: user.username,
@@ -107,7 +96,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 🔹 Login Route
+// Login Route
 router.post('/login', authLimiter, async (req, res) => {
   const { username, password } = req.body;
 
@@ -119,7 +108,6 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 
   try {
-    // Find user (case-insensitive)
     const result = await pool.query(
       'SELECT * FROM user_accounts WHERE LOWER(username) = LOWER($1)',
       [username]
@@ -133,9 +121,8 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     const user = result.rows[0];
-    
-    // Verify password
     const valid = await bcrypt.compare(password, user.password);
+    
     if (!valid) {
       return res.status(401).json({ 
         error: 'Invalid credentials',
@@ -143,18 +130,15 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
-    // Generate JWT token
     const token = generateToken(user.id, user.username);
 
-    // Set secure HTTP-only cookie
     res.cookie('jwt', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    // Return user data (without sensitive info)
     res.json({
       id: user.id,
       username: user.username,
@@ -170,7 +154,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// 🔹 Logout Route
+// Logout Route
 router.post('/logout', (req, res) => {
   res.clearCookie('jwt', {
     httpOnly: true,
@@ -180,7 +164,7 @@ router.post('/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-// 🔹 Current User Route
+// Current User Route
 router.get('/me', async (req, res) => {
   const token = req.cookies.jwt;
 
@@ -190,7 +174,6 @@ router.get('/me', async (req, res) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    
     const result = await pool.query(
       'SELECT id, username, created_at FROM user_accounts WHERE id = $1',
       [decoded.id]
