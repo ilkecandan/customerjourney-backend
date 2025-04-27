@@ -26,6 +26,33 @@ const generateToken = (userId, username) => {
   );
 };
 
+// Authentication middleware
+const authenticateToken = async (req, res, next) => {
+  const token = req.cookies.jwt;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const result = await pool.query(
+      'SELECT id, username FROM user_accounts WHERE id = $1',
+      [decoded.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid token - user not found' });
+    }
+
+    req.user = result.rows[0];
+    next();
+  } catch (err) {
+    console.error('Authentication error:', err);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
 // Register Route
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
@@ -165,18 +192,11 @@ router.post('/logout', (req, res) => {
 });
 
 // Current User Route
-router.get('/me', async (req, res) => {
-  const token = req.cookies.jwt;
-
-  if (!token) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
+router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
     const result = await pool.query(
       'SELECT id, username, created_at FROM user_accounts WHERE id = $1',
-      [decoded.id]
+      [req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -190,4 +210,8 @@ router.get('/me', async (req, res) => {
   }
 });
 
-module.exports = router;
+// Export both the router and middleware
+module.exports = {
+  router,
+  authenticateToken
+};
