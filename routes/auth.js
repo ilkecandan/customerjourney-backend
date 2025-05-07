@@ -10,13 +10,21 @@ const router = express.Router();
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
-// CORS Middleware (adds headers manually)
+// CORS Middleware with OPTIONS support
 router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'https://funnelflow.live');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204); // CORS preflight response
+  }
+
   next();
 });
+
+// Dummy favicon route to silence browser 404s
+router.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Email transporter
 const transporter = nodemailer.createTransport({
