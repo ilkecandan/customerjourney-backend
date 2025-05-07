@@ -39,20 +39,20 @@ const transporter = nodemailer.createTransport({
 
 // Register
 router.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { email, password } = req.body;
   try {
-    const exists = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [username]);
+    const exists = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
     if (exists.rows.length > 0) {
-      return res.status(400).json({ error: 'Username taken' });
+      return res.status(400).json({ error: 'Email is already registered.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     const result = await pool.query(
-      'INSERT INTO user_accounts (username, password) VALUES ($1, $2) RETURNING id, username',
-      [username, hashedPassword]
+      'INSERT INTO "user" (email, password) VALUES ($1, $2) RETURNING id, email',
+      [email, hashedPassword]
     );
 
-    const token = jwt.sign({ id: result.rows[0].id, username }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: result.rows[0].id, email }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: result.rows[0] });
   } catch (err) {
     console.error('❌ Error in /register:', err);
@@ -62,17 +62,17 @@ router.post('/register', async (req, res) => {
 
 // Login
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { email, password } = req.body;
   try {
-    const result = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [username]);
+    const result = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Incorrect password' });
 
-    const token = jwt.sign({ id: user.id, username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, username: user.username } });
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, email: user.email } });
   } catch (err) {
     console.error('❌ Error in /login:', err);
     res.status(500).json({ error: 'Something went wrong during login.' });
@@ -82,8 +82,8 @@ router.post('/login', async (req, res) => {
 // Request password reset
 router.post('/request-reset', async (req, res) => {
   try {
-    const { username } = req.body;
-    const result = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [username]);
+    const { email } = req.body;
+    const result = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -93,15 +93,15 @@ router.post('/request-reset', async (req, res) => {
     const expires = new Date(Date.now() + 3600000); // 1 hour
 
     await pool.query(
-      'UPDATE user_accounts SET reset_token = $1, resetexpires = $2 WHERE username = $3',
-      [token, expires, username]
+      'UPDATE "user" SET reset_token = $1, resetexpires = $2 WHERE email = $3',
+      [token, expires, email]
     );
 
     const resetLink = `https://funnelflow.live/reset-password.html?token=${token}`;
 
     await transporter.sendMail({
       from: `FunnelFlow <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
-      to: result.rows[0].username,
+      to: result.rows[0].email,
       subject: 'Reset your password',
       html: `<p>Click <a href="${resetLink}">here</a> to reset your password. This link expires in 1 hour.</p>`
     });
@@ -122,7 +122,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT * FROM user_accounts WHERE reset_token = $1 AND resetexpires > NOW()',
+      'SELECT * FROM "user" WHERE reset_token = $1 AND resetexpires > NOW()',
       [token]
     );
 
@@ -133,7 +133,7 @@ router.post('/reset-password', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     await pool.query(
-      'UPDATE user_accounts SET password = $1, reset_token = NULL, resetexpires = NULL WHERE reset_token = $2',
+      'UPDATE "user" SET password = $1, reset_token = NULL, resetexpires = NULL WHERE reset_token = $2',
       [hashedPassword, token]
     );
 
