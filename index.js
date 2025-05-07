@@ -11,14 +11,19 @@ const leadsRoutes = require('./routes/leads');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ✅ CORS Setup (manual to support credentials if needed)
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://funnelflow.live');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+// ✅ Centralized CORS Configuration
+const corsOptions = {
+  origin: ['https://funnelflow.live', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+
+// ✅ Automatically handle preflight OPTIONS
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
@@ -52,7 +57,7 @@ app.get('/api/debug/leads-columns', async (req, res) => {
 });
 
 // ✅ Core API Routes
-app.use('/api/auth', authRoutes);  // e.g., /api/auth/request-reset
+app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);
 
 // ✅ Start server
