@@ -10,6 +10,14 @@ const router = express.Router();
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
+// CORS Middleware (adds headers manually)
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://funnelflow.live');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  next();
+});
+
 // Email transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -74,10 +82,10 @@ router.post('/request-reset', async (req, res) => {
 
     await pool.query('UPDATE user_accounts SET reset_token = $1, resetexpires = $2 WHERE username = $3', [token, expires, username]);
 
-    const resetLink = `https://yourdomain.com/reset-password.html?token=${token}`;
+    const resetLink = `https://funnelflow.live/reset-password.html?token=${token}`;
 
     await transporter.sendMail({
-      from: `Your App <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
+      from: `FunnelFlow <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
       to: result.rows[0].username,
       subject: 'Reset your password',
       html: `<p>Click <a href="${resetLink}">here</a> to reset your password. This link expires in 1 hour.</p>`
