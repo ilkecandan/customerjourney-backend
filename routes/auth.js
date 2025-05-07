@@ -10,23 +10,19 @@ const router = express.Router();
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
-// CORS Middleware with OPTIONS support
+// -------------------- CORS Middleware --------------------
 router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'https://funnelflow.live');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204); // CORS preflight response
-  }
-
+  if (req.method === 'OPTIONS') return res.sendStatus(204); // CORS preflight
   next();
 });
 
-// Dummy favicon route to silence browser 404s
+// -------------------- Favicon Catch --------------------
 router.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Email transporter
+// -------------------- Email Transporter --------------------
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: process.env.SMTP_PORT || 587,
@@ -37,7 +33,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Register
+// -------------------- Register --------------------
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -59,7 +55,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login
+// -------------------- Login --------------------
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -78,17 +74,17 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Request password reset
+// -------------------- Request Password Reset --------------------
 router.post('/request-reset', async (req, res) => {
   try {
-    const { username } = req.body;
-    const result = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [username]);
+    const { email } = req.body; // NOTE: renamed from "username" to "email" for clarity
+    const result = await pool.query('SELECT * FROM user_accounts WHERE username = $1', [email]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 3600000); // 1 hour
 
-    await pool.query('UPDATE user_accounts SET reset_token = $1, resetexpires = $2 WHERE username = $3', [token, expires, username]);
+    await pool.query('UPDATE user_accounts SET reset_token = $1, resetexpires = $2 WHERE username = $3', [token, expires, email]);
 
     const resetLink = `https://funnelflow.live/reset-password.html?token=${token}`;
 
@@ -106,7 +102,7 @@ router.post('/request-reset', async (req, res) => {
   }
 });
 
-// Reset password
+// -------------------- Reset Password --------------------
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body;
