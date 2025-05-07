@@ -10,23 +10,16 @@ const router = express.Router();
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
-// CORS Middleware with OPTIONS support
 router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'https://funnelflow.live');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204); // Preflight
-  }
-
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
-// Dummy favicon route to avoid browser 404s
 router.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Email transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: process.env.SMTP_PORT || 587,
@@ -42,14 +35,14 @@ router.post('/register', async (req, res) => {
   const { email, password } = req.body;
   try {
     const exists = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
-    if (exists.rows.length > 0) {
-      return res.status(400).json({ error: 'Email is already registered.' });
-    }
+    if (exists.rows.length > 0) return res.status(400).json({ error: 'Email is already registered.' });
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const createdAt = new Date();
+
     const result = await pool.query(
-      'INSERT INTO "user" (email, password) VALUES ($1, $2) RETURNING id, email',
-      [email, hashedPassword]
+      'INSERT INTO "user" (email, password, created_at) VALUES ($1, $2, $3) RETURNING id, email',
+      [email, hashedPassword, createdAt]
     );
 
     const token = jwt.sign({ id: result.rows[0].id, email }, JWT_SECRET, { expiresIn: '30d' });
@@ -82,18 +75,13 @@ router.post('/login', async (req, res) => {
 // Validate Token
 router.get('/validate', async (req, res) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Authorization header missing' });
-  }
+  if (!authHeader) return res.status(401).json({ error: 'Authorization header missing' });
 
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const result = await pool.query('SELECT id, email FROM "user" WHERE id = $1', [decoded.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     res.json({ user: result.rows[0] });
   } catch (err) {
@@ -104,13 +92,10 @@ router.get('/validate', async (req, res) => {
 
 // Request password reset
 router.post('/request-reset', async (req, res) => {
+  const { email } = req.body;
   try {
-    const { email } = req.body;
     const result = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 3600000); // 1 hour
@@ -121,7 +106,6 @@ router.post('/request-reset', async (req, res) => {
     );
 
     const resetLink = `https://funnelflow.live/reset-password.html?token=${token}`;
-
     await transporter.sendMail({
       from: `FunnelFlow <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
       to: result.rows[0].email,
@@ -138,23 +122,17 @@ router.post('/request-reset', async (req, res) => {
 
 // Reset password
 router.post('/reset-password', async (req, res) => {
-  try {
-    const { token, password } = req.body;
-    if (!token || !password) {
-      return res.status(400).json({ error: 'Missing token or password' });
-    }
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Missing token or password' });
 
+  try {
     const result = await pool.query(
       'SELECT * FROM "user" WHERE reset_token = $1 AND resetexpires > NOW()',
       [token]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid or expired token' });
-    }
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid or expired token' });
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
     await pool.query(
       'UPDATE "user" SET password = $1, reset_token = NULL, resetexpires = NULL WHERE reset_token = $2',
       [hashedPassword, token]
