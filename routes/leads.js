@@ -90,7 +90,7 @@ router.get('/:userId', async (req, res) => {
     const requestedUserId = parseInt(req.params.userId);
     const tokenUserId = req.user.id;
 
-    if (isNaN(requestedUserId) {
+    if (isNaN(requestedUserId)) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
 
